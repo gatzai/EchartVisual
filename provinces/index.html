@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>ECharts</title>
+    <!--
+    -->
+    <script type="text/javascript" src="./js/allpos_t.json" charset="gbk"></script>
+    <script type="text/javascript" src="./js/geoinfo.json"></script>
+    <script type="text/javascript" src="./js/changjiang.json"></script>
+    <script type="text/javascript" src="./js/geo_tool.js"></script>
+    <script type="text/javascript" src="./js/tools.js"></script>
+    <!-- 引入 echarts.js -->
+	<script src="https://cdn.bootcss.com/echarts/4.2.1-rc1/echarts.min.js"></script>
+</head>
+<body>
+    <!-- 为ECharts准备一个具备大小（宽高）的Dom -->
+    <div id="map" style="width: 90%;height:800px;"></div>
+    <button id="btn">export</button>
+    <script type="text/javascript">
+
+        //长江多边形坐标
+        var changjinag_polys = changjiang_poly.features[0].geometry.coordinates[0]
+        //console.log(changjinag_polys)
+
+        var ep_len = Object.keys(enterprises).length;
+        console.log("企业总数：", ep_len)
+        var ep_lines = convert_ep_lines(enterprises);
+        //console.log(ep_lines);
+        var ep_data = convert_year_scatters(enterprises);
+        //console.log(ep_data);
+
+
+        //测试导出
+        //document.getElementById('btn').onclick = () => {
+        //    exportFileJSON(data, 'example.json');
+        //}
+
+        //迁移数据：98不在淮河，05在淮河，
+
+        /*
+        地址标准化： 省->市->县区->乡镇->街道
+        */
+
+        /*
+        对于企业迁移的绘制：
+        1. 获取enterprise结构
+        2. 绘制不同年份所有企业的位置，每个年份分别构建一个数组即可（需要一个地名转坐标函数）
+        3. 绘制迁移路径, 线段不连续性极高
+        */
+
+
+        //console.log(changjinag_polys)
+
+        //console.log(geoall.length)
+        function drawchina(data) {
+            var chinamap = echarts.init(document.getElementById('map'));
+            var option1 = {
+            // 背景颜色
+            backgroundColor: "#404a59",
+            // 提示浮窗样式
+            tooltip: {
+                show: true,
+                trigger: "item",
+                alwaysShowContent: false,
+                backgroundColor: "#0C121C",
+                borderColor: "rgba(0, 0, 0, 0.16);",
+                hideDelay: 100,
+                triggerOn: "mousemove",
+                enterable: true,
+                textStyle: {
+                    color: "#DADADA",
+                    fontSize: "12",
+                    width: 20,
+                    height: 30,
+                    overflow: "break",
+                },
+                showDelay: 100
+            },
+            // 地图配置
+            geo: {
+                map: "china",
+                zoom: 3,
+                roam: true,
+                label: {
+                    // 通常状态下的样式
+                    normal: {
+                        show: true,
+                        textStyle: {
+                            color: "#fff",
+                        },
+                    },
+                    // 鼠标放上去的样式
+                    emphasis: {
+                        textStyle: {
+                            color: "#fff",
+                        },
+                    },
+                },
+                // 地图区域的样式设置
+                itemStyle: {
+                    normal: {
+                        areaColor: '#282C34',
+                        borderColor: "rgba(147, 235, 248, 1)",
+                        borderWidth: 1,
+                        //注释掉，因为有显示bug，和下面lines的effect冲突，导致显示过亮
+                        //areaColor: {
+                        //    type: "radial",
+                        //    x: 0.5,
+                        //    y: 0.5,
+                        //    r: 0.8,
+                        //    colorStops: [
+                        //    {
+                        //        offset: 0,
+                        //        color: "rgba(147, 235, 248, 0)", // 0% 处的颜色
+                        //    },
+                        //    {
+                        //        offset: 1,
+                        //        color: "rgba(147, 235, 248, .2)", // 100% 处的颜色
+                        //    },
+                        //    ],
+                        //    globalCoord: false, // 缺省为 false
+                        //},
+                        //shadowColor: "rgba(128, 217, 248, 1)",
+                        //shadowOffsetX: -2,
+                        //shadowOffsetY: 2,
+                        //shadowBlur: 10,
+                    },
+                    // 鼠标放上去高亮的样式
+                    emphasis: {
+                        areaColor: "#389BB709",
+                        borderWidth: 0,
+                    },
+                },
+            },
+            /*
+            映射方式，把数组的某个维度作为映射分类
+            比如：
+            [[p1,p2,p3],...] 这个数组，前面两个是坐标，p3就是分类
+            */
+            visualMap: [{
+                //max: 9000,
+                dimension: 2,
+                seriesIndex: 0,
+                //pieces: [2005,2013]
+                //color: ['red', 'green'],
+                //pieces: ['1998','2005','2013', '2014']
+                pieces: [1998,2005,2013, 2014],
+                textStyle:{
+                    color: '#fff'
+                }
+            }],
+            series:[
+                {
+                    tooltip: {
+                        formatter: (param)=>{
+                            //todo: 做重复点显示
+                            //思路：把经纬度构建成字典，然后搜索显示即可
+                            let  str = `
+                            <div>机构代码: ${param.value[3]}</div>
+                            <div>年份: ${param.value[2]} </div>`
+                            return str;
+                        },
+                        position: 'top'
+                    },
+                    type: "scatter",
+                    coordinateSystem: "geo",
+                    animation: false,
+                    //显示超大数据集
+                    //large: true,
+                    //threshold: 10000,
+                    symbolSize: 7,
+                    data: ep_data
+
+                },
+                {
+                    name: "",
+                    type: "lines",
+                    polyline: true,
+                    coordinateSystem: 'geo',
+                    silent:true,
+                    effect:{
+                        show: true,
+                        period: 1, // 特效动画的时间
+                        //constantSpeed: 20,
+                        trailLength: 0.3, // 特效尾迹的长度。取从 0 到 1 的值，默认为 0.2，数值越大尾迹越长
+                        color: '#D1888D',
+                        // symbol: planePath, // 特效图形的标记
+                        symbolSize: 3
+                    },
+                    lineStyle: {
+                        normal: {
+                            color: '#735052',
+                            width: 1,
+                            opacity: 0.6,
+                            //curveness: 0.2
+                        }
+                    },
+                    symbolSize:50,
+                    data: convert_ep_lines(enterprises),
+                },
+                {
+                    type: "lines",
+                    polyline: true,
+                    coordinateSystem: 'geo',
+                    lineStyle: {
+                        normal: {
+                            color: '#f00',
+                            width: 2,
+                            opacity: 0.6,
+                            //curveness: 0.2
+                        }
+                    },
+                    data: [{coords:changjinag_polys}],
+                }
+                ],
+            };
+            echarts.registerMap("china",data);
+            chinamap.setOption(option1, true);
+        }
+        fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+        // fetch()接收到的response是一个 Stream 对象
+        // response.json()是一个异步操作，取出所有内容，并将其转为 JSON 对象
+        .then(response => response.json())
+        .then(json => drawchina(json))//console.log(json))
+        .catch(err => console.log('Request Failed', err)); 
+
+    </script>
+</body>
+</html>
